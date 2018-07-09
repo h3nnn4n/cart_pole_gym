@@ -5,134 +5,107 @@ import math
 from random import random, sample
 
 
-def max_Q(Q, state):
-    if state not in Q.keys():
-        return sample([0, 1], k=1)[0]
+class Ninja:
+    def __init__(self):
+        self.env = gym.make('CartPole-v0')
 
-    v = list(Q.values())
-    k = list(Q.keys())
+        self.levels = [0, 0, 5, 2]
 
-    m = max(v)
-    c = []
-    for i, j in enumerate(v):
-        if j == m:
-            c.append(i)
+        self.Q = self.enumerate_state_space()
 
-    if len(c) == 1:
-        return k[v.index(m)]
-    else:
-        return sample(c, 1)[0]
+        self.epsilon = 0.9
+        self.alpha = 0.9
+        self.gamma = 0.95
 
+        self.high = [0.3, 2.25, 0.4, 3.5]
+        self.low = [-0.3, -2.25, -0.4, -3.5]
 
-def max_Q_value(Q, state):
-    a = max_Q(Q, state)
-    if state not in Q.keys() or a not in Q[state].keys():
-        return 0
-    return Q[state][a]
+        self.max_iters = 100
+        self.max_time = 200
 
+        self.n_space = self.env.observation_space.shape[0]
 
-def discretize(space, levels, h, l):
-    n_space = env.observation_space.shape[0]
-    v = [0 for _ in range(n_space)]
+    def run(self):
+        for i_episode in range(self.max_iters):
+            observation = self.env.reset()
 
-    for i in range(n_space):
-        v[i] = int(round(((space[i] - l[i]) / (h[i] - l[i])) * levels[i]))
+            current_state = self.discretize(observation)
+            action = self.get_action(current_state)
 
-    return tuple(v)
+            total_reward = 0
 
+            data_t = []
+            data_r = []
 
-def get_action(Q, state, env, epsilon):
-    max_actions = env.action_space.n
-    if state in Q.keys() and random() < epsilon:
-        if len(Q[state]) > max_actions:
-            return max_Q(Q[state])
-    return env.action_space.sample()
+            for t in range(self.max_time):
+                observation, reward, done, _ = self.env.step(action)
 
+                new_state = self.discretize(observation)
+                action = self.get_action(current_state)
 
-def get_Q(Q, state, action):
-    if state in Q.keys():
-        if action in Q[state].keys():
-            return Q[state][action]
-    return 0
+                self.update_Q(current_state, new_state, action)
 
+                current_state = new_state
 
-def update_Q(Q, current_state, new_state, action, alpha, gamma):
-    if current_state not in Q.keys():
-        Q[current_state] = {}
+                total_reward += reward
 
-    if current_state in Q.keys():
-        if action not in Q[current_state].keys():
-            Q[current_state][action] = 0
-    #print(max_Q_value(Q, new_state))
-    #print(get_Q(Q, new_state, action))
-    Q[current_state][action] += alpha * (reward + \
-            gamma * max_Q_value(Q, new_state) - get_Q(Q, current_state, action))
+                if done:
+                    data_t.append(t)
+                    data_r.append(total_reward)
 
+                    #if (i_episode + 1) % 2 == 0 or True:
+                    if (i_episode + 1) % 500 == 0:
+                        #print("%6d %3d %3d" % (i_episode + 1, np.mean(data_t), np.mean(data_r)))
+                        #print("%6d %3d %3d %6.3f %6.3f %6.3f" %
+                                #(i_episode + 1, np.mean(data_t), np.mean(data_r), epsilon, alpha, gamma))
+                        data_t = []
+                        data_r = []
+                    break
 
-env = gym.make('CartPole-v0')
+    def update_Q(self):
+        Q[current_state][action] += alpha * (reward + \
+                gamma * max_Q_value(Q, new_state) - get_Q(Q, current_state, action))
 
-levels = [0, 0, 5, 2]
+    def discretize(self, space):
+        v = [0 for _ in range(self.n_space)]
 
-#Q = enumerate_state_space(levels, env)
-Q = {}
+        for i in range(self.n_space):
+            v[i] = int(round(((space[i] - self.low[i]) / (self.high[i] -
+                       self.low[i])) * self.levels[i]))
 
-epsilon = 0.9
-alpha = 0.9
-gamma = 0.95
+        return tuple(v)
 
-decay_1 = 0.9999
-decay_2 = 0.9995
+    def get_action(self, state):
+        if random() < self.epsilon:
+            return self.env.action_space.sample()
+        else:
+            return np.argmax(self.Q[state])
 
-n_space = env.observation_space.shape[0]
-h = [float('-inf') for _ in range(n_space)]
-l = [float('inf') for _ in range(n_space)]
+    def enumerate_state_space(self):
+        actions = self.env.action_space.n
+        Q = {}
 
-#h = [0.27381544672682456, 2.196749673236612, 0.05094564389112599, 0.04999926542898585]
-#l = [-0.05093429589386663, -0.04999975830341763, -0.26919109066233127, -3.336362821304928]
+        counter = [0 for _ in range(len(self.levels))]
+        do = True
+        while do:
+            for i in range(len(self.levels) - 1, -1, -1):
+                if counter[i] < self.levels[i]:
+                    counter[i] += 1
+                    break
+                else:
+                    if i > 0:
+                        counter[i] = 0
+                    elif i == 0:
+                        do = False
+                        break
 
-h = [0.3, 2.25, 0.4, 3.5]
-l = [-0.3, -2.25, -0.4, -3.5]
+            if not do:
+                break
 
-for i_episode in range(10000):
-    observation = env.reset()
+            s = (tuple(counter))
 
-    current_state = discretize(observation, levels, h, l)
-    action = get_action(Q, current_state, env, epsilon)
+            Q[s] = {}
+            for a in range(actions):
+                Q[s][a] = 0.0
 
-    total_reward = 0
-
-    data_t = []
-    data_r = []
-
-    epsilon *= decay_1
-    alpha *= decay_2
-    epsilon *= decay_2
-
-    for t in range(200):
-        observation, reward, done, _ = env.step(action)
-
-        new_state = discretize(observation, levels, h, l)
-        action = get_action(Q, current_state, env, epsilon)
-
-        update_Q(Q, current_state, new_state, action, alpha, gamma)
-
-        current_state = new_state
-
-        for i in range(n_space):
-            h[i] = max(h[i], observation[i])
-            l[i] = min(l[i], observation[i])
-
-        total_reward += reward
-
-        if done:
-            data_t.append(t)
-            data_r.append(total_reward)
-
-            #if (i_episode + 1) % 2 == 0 or True:
-            if (i_episode + 1) % 500 == 0:
-                #print("%6d %3d %3d" % (i_episode + 1, np.mean(data_t), np.mean(data_r)))
-                print("%6d %3d %3d %6.3f %6.3f %6.3f" %
-                        (i_episode + 1, np.mean(data_t), np.mean(data_r), epsilon, alpha, gamma))
-                data_t = []
-                data_r = []
-            break
+        return Q
