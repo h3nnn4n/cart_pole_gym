@@ -1,8 +1,6 @@
 import gym
 import numpy as np
-import math
-
-from random import random, sample
+from random import random
 
 
 class Ninja:
@@ -20,7 +18,7 @@ class Ninja:
         self.high = [0.3, 2.25, 0.4, 3.5]
         self.low = [-0.3, -2.25, -0.4, -3.5]
 
-        self.max_iters = 100
+        self.max_iters = 1000
         self.max_time = 200
 
         self.n_space = self.env.observation_space.shape[0]
@@ -43,7 +41,7 @@ class Ninja:
                 new_state = self.discretize(observation)
                 action = self.get_action(current_state)
 
-                self.update_Q(current_state, new_state, action)
+                self.update_Q(current_state, new_state, action, reward)
 
                 current_state = new_state
 
@@ -53,18 +51,17 @@ class Ninja:
                     data_t.append(t)
                     data_r.append(total_reward)
 
-                    #if (i_episode + 1) % 2 == 0 or True:
-                    if (i_episode + 1) % 500 == 0:
-                        #print("%6d %3d %3d" % (i_episode + 1, np.mean(data_t), np.mean(data_r)))
-                        #print("%6d %3d %3d %6.3f %6.3f %6.3f" %
-                                #(i_episode + 1, np.mean(data_t), np.mean(data_r), epsilon, alpha, gamma))
+                    if (i_episode + 1) % 10 == 0:
+                        print("%6d %3d %3d" % (i_episode + 1, np.mean(data_t),
+                                               np.mean(data_r)))
                         data_t = []
                         data_r = []
                     break
 
-    def update_Q(self):
-        Q[current_state][action] += alpha * (reward + \
-                gamma * max_Q_value(Q, new_state) - get_Q(Q, current_state, action))
+    def update_Q(self, current_state, new_state, action, reward):
+        self.Q[current_state][action] += self.alpha * \
+                (reward + self.gamma *
+                 np.argmax(self.Q[new_state]) - self.Q[current_state][action])
 
     def discretize(self, space):
         v = [0 for _ in range(self.n_space)]
@@ -109,3 +106,7 @@ class Ninja:
                 Q[s][a] = 0.0
 
         return Q
+
+
+ninja_das_trevas = Ninja()
+ninja_das_trevas.run()
