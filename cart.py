@@ -5,7 +5,10 @@ import math
 from random import random, sample
 
 
-def max_Q(Q):
+def max_Q(Q, state):
+    if state not in Q.keys():
+        return sample([0, 1], k=1)[0]
+
     v = list(Q.values())
     k = list(Q.keys())
 
@@ -18,10 +21,14 @@ def max_Q(Q):
     if len(c) == 1:
         return k[v.index(m)]
     else:
-        #w = sample(c, 1)[0]
-        #print('haha ', w)
-        #return(w)
         return sample(c, 1)[0]
+
+
+def max_Q_value(Q, state):
+    a = max_Q(Q, state)
+    if state not in Q.keys() or a not in Q[state].keys():
+        return 0
+    return Q[state][a]
 
 
 def discretize(space, levels, h, l):
@@ -34,49 +41,47 @@ def discretize(space, levels, h, l):
     return tuple(v)
 
 
-def enumerate_state_space(levels, env):
-    actions = env.action_space.n
-    Q = {}
+def get_action(Q, state, env, epsilon):
+    max_actions = env.action_space.n
+    if state in Q.keys() and random() < epsilon:
+        if len(Q[state]) > max_actions:
+            return max_Q(Q[state])
+    return env.action_space.sample()
 
-    counter = [0 for _ in range(len(levels))]
-    do = True
-    while do:
-        for i in range(len(levels) - 1, -1, -1):
-            if counter[i] < levels[i]:
-                counter[i] += 1
-                break
-            else:
-                if i > 0:
-                    counter[i] = 0
-                elif i == 0:
-                    do = False
-                    break
 
-        if not do:
-            break
+def get_Q(Q, state, action):
+    if state in Q.keys():
+        if action in Q[state].keys():
+            return Q[state][action]
+    return 0
 
-        s = (tuple(counter))
 
-        Q[s] = {}
-        for a in range(actions):
-            #Q[s][a] = random() / 100.0
-            Q[s][a] = 0.0
+def update_Q(Q, current_state, new_state, action, alpha, gamma):
+    if current_state not in Q.keys():
+        Q[current_state] = {}
 
-    return Q
+    if current_state in Q.keys():
+        if action not in Q[current_state].keys():
+            Q[current_state][action] = 0
+    #print(max_Q_value(Q, new_state))
+    #print(get_Q(Q, new_state, action))
+    Q[current_state][action] += alpha * (reward + \
+            gamma * max_Q_value(Q, new_state) - get_Q(Q, current_state, action))
 
 
 env = gym.make('CartPole-v0')
 
-levels = [0, 0, 15, 20]
+levels = [0, 0, 5, 2]
 
-Q = enumerate_state_space(levels, env)
+#Q = enumerate_state_space(levels, env)
+Q = {}
 
-epsilon = 0.6
+epsilon = 0.9
 alpha = 0.9
 gamma = 0.95
 
-decay_1 = 0.99
-decay_2 = 0.95
+decay_1 = 0.9999
+decay_2 = 0.9995
 
 n_space = env.observation_space.shape[0]
 h = [float('-inf') for _ in range(n_space)]
@@ -88,18 +93,13 @@ l = [float('inf') for _ in range(n_space)]
 h = [0.3, 2.25, 0.4, 3.5]
 l = [-0.3, -2.25, -0.4, -3.5]
 
-#for i_episode in range(5000):
-#for i_episode in range(500):
-for i_episode in range(50):
+for i_episode in range(10000):
     observation = env.reset()
 
     current_state = discretize(observation, levels, h, l)
-    possible_actions = Q[current_state]
-    action = max_Q(possible_actions)
+    action = get_action(Q, current_state, env, epsilon)
 
     total_reward = 0
-
-    #print()
 
     data_t = []
     data_r = []
@@ -109,24 +109,14 @@ for i_episode in range(50):
     epsilon *= decay_2
 
     for t in range(200):
-        #if i_episode == 1500:
-            #env.render()
-
         observation, reward, done, _ = env.step(action)
 
         new_state = discretize(observation, levels, h, l)
-        possible_actions = Q[new_state]
+        action = get_action(Q, current_state, env, epsilon)
 
-        if random() < epsilon:
-            action = env.action_space.sample()
-        else:
-            action = max_Q(possible_actions)
+        update_Q(Q, current_state, new_state, action, alpha, gamma)
 
-        #Q[current_state][action] += alpha * ((1.0 - reward * min(1, abs(observation[0]))) + gamma * max_Q(Q[new_state]) - Q[current_state][action])
-        Q[current_state][action] += alpha * (reward + gamma * max_Q(Q[new_state]) - Q[current_state][action])
         current_state = new_state
-
-        #print(action)
 
         for i in range(n_space):
             h[i] = max(h[i], observation[i])
@@ -138,12 +128,11 @@ for i_episode in range(50):
             data_t.append(t)
             data_r.append(total_reward)
 
-            if (i_episode + 1) % 2 == 0 or True:
-                print("%6d %3d %3d" % (i_episode + 1, np.mean(data_t), np.mean(data_r)))
+            #if (i_episode + 1) % 2 == 0 or True:
+            if (i_episode + 1) % 500 == 0:
+                #print("%6d %3d %3d" % (i_episode + 1, np.mean(data_t), np.mean(data_r)))
+                print("%6d %3d %3d %6.3f %6.3f %6.3f" %
+                        (i_episode + 1, np.mean(data_t), np.mean(data_r), epsilon, alpha, gamma))
                 data_t = []
                 data_r = []
             break
-
-#for k, v in Q.items():
-    #if max_Q(Q[k]) > 0:
-        #print(k, v)
