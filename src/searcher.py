@@ -11,8 +11,8 @@ class Searcher:
         self.champion.random_params()
         self.challenger.random_params()
 
-        self.matches = 10
-        self.generations = 10
+        self.matches = 15
+        self.generations = 1000
 
     def step(self, warmup=False):
         self.challenger.mutate()
@@ -47,6 +47,7 @@ class Searcher:
 
         if m2 > m1:
             self.swap()
+            self.champion.print_params()
 
         if replace:
             self.challenger.alpha = self.champion.alpha

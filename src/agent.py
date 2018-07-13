@@ -18,7 +18,7 @@ class Ninja:
         self.high = [0.3, 2.25, 0.4, 3.5]
         self.low = [-0.3, -2.25, -0.4, -3.5]
 
-        self.max_iters = 1000
+        self.max_iters = 2000
         self.log_interval = 100
         self.max_time = 200
 
@@ -48,47 +48,47 @@ class Ninja:
             if False:
                 r = randint(0, 4)
                 if r == 0:
-                    self.alpha += random() / 6
+                    self.alpha += random() / 5 - 0.2
                 elif r == 1:
-                    self.gamma += random() / 6
+                    self.gamma += random() / 5 - 0.2
                 elif r == 2:
-                    self.epsilon += random() / 6
+                    self.epsilon += random() / 5 - 0.2
                 elif r == 3:
                     self.levels[2] += -1 if random() < 0.5 else 1
                 elif r == 4:
                     self.levels[3] += -1 if random() < 0.5 else 1
             else:
-                self.alpha += random() / 4
-                self.gamma += random() / 4
-                self.epsilon += random() / 4
+                self.alpha += random() / 5 - 0.2
+                self.gamma += random() / 5 - 0.2
+                self.epsilon += random() / 5 - 0.2
                 self.levels[2] += -randint(1, 3) if random() < 0.5 else \
                     randint(1, 3)
                 self.levels[3] += -randint(1, 3) if random() < 0.5 else \
                     randint(1, 3)
 
             if self.alpha > 1:
-                continue
+                self.alpha = 1
 
             if self.gamma > 1:
-                continue
+                self.gamma = 1
 
             if self.epsilon > 0.6:
-                continue
+                self.epsilon = 0.6
 
             if self.alpha < 0.1:
-                continue
+                self.alpha = 0.1
 
             if self.gamma < 0.1:
-                continue
+                self.gamma = 0.1
 
             if self.epsilon < 0.1:
-                continue
-
-            if self.levels[3] < 1:
-                continue
+                self.epsilon = 0.1
 
             if self.levels[2] < 1:
-                continue
+                self.levels[2] = 1
+
+            if self.levels[3] < 1:
+                self.levels[3] = 1
 
             redo = False
 
