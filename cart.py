@@ -7,24 +7,44 @@ class Ninja:
     def __init__(self):
         self.env = gym.make('CartPole-v0')
 
-        self.levels = [0, 0, 5, 2]
+        self.levels = [0, 0, 5, 5]
 
         self.Q = self.enumerate_state_space()
 
         self.epsilon = 0.9
-        self.alpha = 0.9
-        self.gamma = 0.95
+        self.alpha = 0.0
+        self.gamma = 0.0
 
         self.high = [0.3, 2.25, 0.4, 3.5]
         self.low = [-0.3, -2.25, -0.4, -3.5]
 
-        self.max_iters = 1000
+        self.max_iters = 2000
+        self.log_interval = 100
         self.max_time = 200
+
+        self.log = False
 
         self.n_space = self.env.observation_space.shape[0]
 
+    def get_alpha(self):
+        return self.alpha
+
+    def get_gamma(self):
+        return self.gamma
+
+    def get_epsilon(self):
+        return self.epsilon
+
+    def update_params(self):
+        # self.alpha *= 0.99
+        # self.gamma *= 0.99
+        # self.epsilon *= 0.995
+        pass
+
     def run(self):
         for i_episode in range(self.max_iters):
+            self.update_params()
+
             observation = self.env.reset()
 
             current_state = self.discretize(observation)
@@ -51,16 +71,18 @@ class Ninja:
                     data_t.append(t)
                     data_r.append(total_reward)
 
-                    if (i_episode + 1) % 10 == 0:
-                        print("%6d %3d %3d" % (i_episode + 1, np.mean(data_t),
-                                               np.mean(data_r)))
+                    if (i_episode + 1) % self.log_interval == 0:
+                        if self.log:
+                            print("%6d %3d %3d" %
+                                  (i_episode + 1, np.mean(data_t),
+                                   np.mean(data_r)))
                         data_t = []
                         data_r = []
                     break
 
     def update_Q(self, current_state, new_state, action, reward):
-        self.Q[current_state][action] += self.alpha * \
-                (reward + self.gamma *
+        self.Q[current_state][action] += self.get_alpha() * \
+                (reward + self.get_gamma() *
                  np.argmax(self.Q[new_state]) - self.Q[current_state][action])
 
     def discretize(self, space):
@@ -73,7 +95,7 @@ class Ninja:
         return tuple(v)
 
     def get_action(self, state):
-        if random() < self.epsilon:
+        if random() < self.get_epsilon():
             return self.env.action_space.sample()
         else:
             return np.argmax(self.Q[state])
@@ -108,5 +130,6 @@ class Ninja:
         return Q
 
 
-ninja_das_trevas = Ninja()
-ninja_das_trevas.run()
+if __name__ == '__main__':
+    ninja_das_trevas = Ninja()
+    ninja_das_trevas.run()
