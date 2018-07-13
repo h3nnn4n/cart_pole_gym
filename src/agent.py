@@ -1,6 +1,6 @@
 import gym
 import numpy as np
-from random import random
+from random import random, randint
 
 
 class Ninja:
@@ -12,19 +12,85 @@ class Ninja:
         self.Q = self.enumerate_state_space()
 
         self.epsilon = 0.9
-        self.alpha = 0.0
-        self.gamma = 0.0
+        self.alpha = 0.9
+        self.gamma = 0.9
 
         self.high = [0.3, 2.25, 0.4, 3.5]
         self.low = [-0.3, -2.25, -0.4, -3.5]
 
-        self.max_iters = 2000
+        self.max_iters = 1000
         self.log_interval = 100
         self.max_time = 200
 
         self.log = False
 
         self.n_space = self.env.observation_space.shape[0]
+
+        self.max_score = []
+        self.mean_score = []
+
+    def print_params(self):
+        print("alpha: %6.3f   gamma: %6.3f   epsilon: %6.3f   levels: %s" %
+              (self.alpha, self.gamma, self.epsilon, self.levels))
+
+    def random_params(self):
+        self.alpha = random()
+        self.gamma = random()
+        self.epsilon = random()
+
+        self.levels[2] = randint(5, 11)
+        self.levels[3] = randint(5, 11)
+
+    def mutate(self):
+        redo = True
+
+        while redo:
+            if False:
+                r = randint(0, 4)
+                if r == 0:
+                    self.alpha += random() / 6
+                elif r == 1:
+                    self.gamma += random() / 6
+                elif r == 2:
+                    self.epsilon += random() / 6
+                elif r == 3:
+                    self.levels[2] += -1 if random() < 0.5 else 1
+                elif r == 4:
+                    self.levels[3] += -1 if random() < 0.5 else 1
+            else:
+                self.alpha += random() / 4
+                self.gamma += random() / 4
+                self.epsilon += random() / 4
+                self.levels[2] += -randint(1, 3) if random() < 0.5 else \
+                    randint(1, 3)
+                self.levels[3] += -randint(1, 3) if random() < 0.5 else \
+                    randint(1, 3)
+
+            if self.alpha > 1:
+                continue
+
+            if self.gamma > 1:
+                continue
+
+            if self.epsilon > 0.6:
+                continue
+
+            if self.alpha < 0.1:
+                continue
+
+            if self.gamma < 0.1:
+                continue
+
+            if self.epsilon < 0.1:
+                continue
+
+            if self.levels[3] < 1:
+                continue
+
+            if self.levels[2] < 1:
+                continue
+
+            redo = False
 
     def get_alpha(self):
         return self.alpha
@@ -41,7 +107,21 @@ class Ninja:
         # self.epsilon *= 0.995
         pass
 
-    def run(self):
+    def reset_Q(self):
+        self.Q = self.enumerate_state_space()
+
+    def reset(self):
+        self.Q = self.enumerate_state_space()
+        self.max_score = []
+        self.mean_score = []
+
+    def run(self, reset_Q=True):
+        if reset_Q:
+            self.reset_Q()
+
+        data_t = []
+        data_r = []
+
         for i_episode in range(self.max_iters):
             self.update_params()
 
@@ -51,9 +131,6 @@ class Ninja:
             action = self.get_action(current_state)
 
             total_reward = 0
-
-            data_t = []
-            data_r = []
 
             for t in range(self.max_time):
                 observation, reward, done, _ = self.env.step(action)
@@ -76,9 +153,10 @@ class Ninja:
                             print("%6d %3d %3d" %
                                   (i_episode + 1, np.mean(data_t),
                                    np.mean(data_r)))
-                        data_t = []
-                        data_r = []
                     break
+
+        self.max_score.append(max(data_r))
+        self.mean_score.append(np.mean(data_r))
 
     def update_Q(self, current_state, new_state, action, reward):
         self.Q[current_state][action] += self.get_alpha() * \
