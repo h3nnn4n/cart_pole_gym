@@ -1,12 +1,13 @@
 import agent
 import numpy as np
 import sys
+from random import random
 
 
 class Searcher:
     def __init__(self):
-        self.champion = agent.Ninja()
-        self.challenger = agent.Ninja()
+        self.champion = agent.Ninja(log=False)
+        self.challenger = agent.Ninja(log=False)
 
         self.champion.random_params()
         self.challenger.random_params()
@@ -15,7 +16,10 @@ class Searcher:
         self.generations = 1000
 
     def step(self, warmup=False):
-        self.challenger.mutate()
+        if random() < 0.25:
+            self.challenger.random_params()
+        else:
+            self.challenger.mutate()
 
         for i in range(self.matches):
             self.challenger.run()
@@ -40,8 +44,8 @@ class Searcher:
         self.champion.print_params()
 
     def compare(self, replace=False):
-        m1 = np.mean(self.champion.max_score)
-        m2 = np.mean(self.challenger.max_score)
+        m1 = np.mean(self.champion.get_score())
+        m2 = np.mean(self.challenger.get_score())
 
         print("Champion:%6.3f   Challenger: %6.3f" % (m1, m2))
 

@@ -6,14 +6,14 @@ from collections import deque
 
 
 class Ninja:
-    def __init__(self):
+    def __init__(self, log=True):
         self.env = gym.make('CartPole-v0')
 
-        self.levels = [10, 10, 10, 10]
+        self.levels = [6, 6, 6, 12]
 
         self.Q = self.enumerate_state_space()
 
-        self.alpha = 0.5
+        self.alpha = 0.25
         self.gamma = 0.9
         self.epsilon = 0.05
 
@@ -32,17 +32,19 @@ class Ninja:
         self.low = [-4.8, -5, -.418, -5.0]
 
         self.max_iters = 10000
-        self.log_interval = 100
+        self.log_interval = 25
         self.max_time = 200
 
         self.consecutive_episodes_to_win = 100
         self.required_mean_score = 195
 
-        self.log = True
+        self.log = log
 
         self.n_space = self.env.observation_space.shape[0]
 
         self.update_params(0)
+
+        self.survived = deque([], maxlen=self.consecutive_episodes_to_win)
 
     def print_params(self):
         print("alpha: %6.3f   gamma: %6.3f   epsilon: %6.3f   levels: %s" %
@@ -53,8 +55,10 @@ class Ninja:
         self.gamma = random()
         self.epsilon = random()
 
-        self.levels[2] = randint(5, 11)
-        self.levels[3] = randint(5, 11)
+        self.levels[0] = randint(2, 12)
+        self.levels[1] = randint(2, 12)
+        self.levels[2] = randint(2, 12)
+        self.levels[3] = randint(2, 12)
 
     def mutate(self):
         redo = True
@@ -96,14 +100,12 @@ class Ninja:
             if self.gamma < 0.1:
                 self.gamma = 0.1
 
-            if self.epsilon < 0.1:
-                self.epsilon = 0.1
+            if self.epsilon < 0.01:
+                self.epsilon = 0.01
 
-            if self.levels[2] < 1:
-                self.levels[2] = 1
-
-            if self.levels[3] < 1:
-                self.levels[3] = 1
+            for i in range(len(self.levels)):
+                if self.levels[i] < 1:
+                    self.levels[i] = 1
 
             redo = False
 
@@ -124,18 +126,20 @@ class Ninja:
                     (((self.max_iters - current_episode) / self.max_iters) ** 2.0)
 
     def reset_Q(self):
+        self.survived = deque([], maxlen=self.consecutive_episodes_to_win)
         self.Q = self.enumerate_state_space()
 
     def reset(self):
-        self.Q = self.enumerate_state_space()
+        self.reset_Q()
         self.max_score = []
         self.mean_score = []
+
+    def get_score(self):
+        return self.survived
 
     def run(self, reset_Q=True):
         if reset_Q:
             self.reset_Q()
-
-        survived = deque([], maxlen=self.consecutive_episodes_to_win)
 
         for i_episode in range(self.max_iters):
             self.update_params(i_episode)
@@ -151,18 +155,18 @@ class Ninja:
                 current_state = new_state
 
                 if done:
-                    survived.append(t + 1)
+                    self.survived.append(t + 1)
 
                     if (i_episode + 1) % self.log_interval == 0:
                         if self.log:
                             print("%6d %3d %3d %6.3f %6.3f %6.3f" %
-                                  (i_episode + 1, np.mean(survived),
-                                   max(survived),
+                                  (i_episode + 1, np.mean(self.survived),
+                                   max(self.survived),
                                    self.alpha, self.gamma, self.epsilon))
                             sys.stdout.flush()
                     break
 
-            if np.mean(survived) > self.required_mean_score:
+            if np.mean(self.survived) > self.required_mean_score and i_episode > self.consecutive_episodes_to_win:
                 print("Solved after %6d episodes" % (i_episode))
                 break
 
