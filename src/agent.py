@@ -8,24 +8,30 @@ class Ninja:
     def __init__(self):
         self.env = gym.make('CartPole-v0')
 
-        self.levels = [0, 0, 2, 2]
+        self.levels = [10, 10, 10, 10]
 
         self.Q = self.enumerate_state_space()
 
-        self.alpha = 0.4
+        self.alpha = 0.5
         self.gamma = 0.9
-        self.epsilon = 0.75
+        self.epsilon = 0.05
 
-        self.alpha_min = 0.6
-        self.gamma_min = 0.5
-        self.epsilon_min = 0.05
+        self.alpha_start = 1.0
+        self.gamma_start = 1.0
+        self.epsilon_start = 0.75
 
-        self.high = [10.5, 7.0, 6.0, 10.0]
-        self.low = [-10.5, -7.0, -6.0, -10.0]
+        self.alpha_end = 0.1
+        self.gamma_end = 1.0
+        self.epsilon_end = 0.05
+
+        self.adapt_params = True
+        self.adapt_params = False
+
+        self.high = [4.8, 5, .418, 5.0]
+        self.low = [-4.8, -5, -.418, -5.0]
 
         self.max_iters = 1000
-        self.max_iters = 2000
-        self.max_iters = 10000
+        self.log_interval = 10
         self.log_interval = 100
         self.max_time = 200
 
@@ -33,8 +39,7 @@ class Ninja:
 
         self.n_space = self.env.observation_space.shape[0]
 
-        self.max_score = []
-        self.mean_score = []
+        self.update_params(0)
 
     def print_params(self):
         print("alpha: %6.3f   gamma: %6.3f   epsilon: %6.3f   levels: %s" %
@@ -108,14 +113,12 @@ class Ninja:
     def get_epsilon(self):
         return self.epsilon
 
-    def update_params(self):
-        self.alpha *= 1.0001
-        self.gamma *= 0.9999
-        self.epsilon *= 0.99975
-
-        self.alpha = min(self.alpha, self.alpha_min)
-        self.gamma = max(self.gamma, self.gamma_min)
-        self.epsilon = max(self.epsilon, self.epsilon_min)
+    def update_params(self, current_episode):
+        if self.adapt_params:
+            self.alpha = self.alpha_end + (self.alpha_start - self.alpha_end) * \
+                    (((self.max_iters - current_episode) / self.max_iters) ** 2.0)
+            self.epsilon = self.epsilon_end + (self.epsilon_start - self.epsilon_end) * \
+                    (((self.max_iters - current_episode) / self.max_iters) ** 2.0)
 
     def reset_Q(self):
         self.Q = self.enumerate_state_space()
@@ -133,26 +136,19 @@ class Ninja:
         data_r = []
 
         for i_episode in range(self.max_iters):
-            self.update_params()
+            self.update_params(i_episode)
 
             observation = self.env.reset()
 
             current_state = self.discretize(observation)
-            action = self.get_action(current_state)
 
             total_reward = 0
 
             for t in range(self.max_time):
-                #if i_episode > 2000:
-                    #self.env.render()
-
-                observation, reward, done, _ = self.env.step(action)
-
-                new_state = self.discretize(observation)
                 action = self.get_action(current_state)
-
+                observation, reward, done, _ = self.env.step(action)
+                new_state = self.discretize(observation)
                 self.update_Q(current_state, new_state, action, reward)
-
                 current_state = new_state
 
                 total_reward += reward
@@ -173,10 +169,14 @@ class Ninja:
                         data_r = []
                     break
 
+    def get_max_Q_for_state(self, state):
+        best_index = max(self.Q[state], key=self.Q[state].get)
+        return self.Q[state][best_index]
+
     def update_Q(self, current_state, new_state, action, reward):
         self.Q[current_state][action] += self.get_alpha() * \
                 (reward + self.get_gamma() *
-                 np.argmax(self.Q[new_state]) - self.Q[current_state][action])
+                 self.get_max_Q_for_state(new_state) - self.Q[current_state][action])
 
     def discretize(self, space):
         v = [0 for _ in range(self.n_space)]
@@ -184,12 +184,16 @@ class Ninja:
         for i in range(self.n_space):
             if space[i] < self.low[i]:
                 print('New low found: %2d %6.3f' % (i, space[i]))
+                import sys
+                sys.exit()
 
             if space[i] > self.high[i]:
                 print('New high found: %2d %6.3f' % (i, space[i]))
+                import sys
+                sys.exit()
 
             v[i] = int(round(((space[i] - self.low[i]) / (self.high[i] -
-                       self.low[i])) * self.levels[i]))
+                       self.low[i])) * (self.levels[i])))
 
         return tuple(v)
 
@@ -197,7 +201,7 @@ class Ninja:
         if random() < self.get_epsilon():
             return self.env.action_space.sample()
         else:
-            best_index = np.argmax(self.Q[state])
+            best_index = max(self.Q[state], key=self.Q[state].get)
             best_reward = self.Q[state][best_index]
             bests_indices = [action for action in self.Q[state].keys() if self.Q[state][action] == best_reward]
             return sample(bests_indices, k=1)[0]
