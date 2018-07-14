@@ -2,6 +2,7 @@ import gym
 import numpy as np
 import sys
 from random import random, randint, sample
+from collections import deque
 
 
 class Ninja:
@@ -30,10 +31,12 @@ class Ninja:
         self.high = [4.8, 5, .418, 5.0]
         self.low = [-4.8, -5, -.418, -5.0]
 
-        self.max_iters = 1000
-        self.log_interval = 10
+        self.max_iters = 10000
         self.log_interval = 100
         self.max_time = 200
+
+        self.consecutive_episodes_to_win = 100
+        self.required_mean_score = 195
 
         self.log = True
 
@@ -132,17 +135,13 @@ class Ninja:
         if reset_Q:
             self.reset_Q()
 
-        data_t = []
-        data_r = []
+        survived = deque([], maxlen=self.consecutive_episodes_to_win)
 
         for i_episode in range(self.max_iters):
             self.update_params(i_episode)
 
             observation = self.env.reset()
-
             current_state = self.discretize(observation)
-
-            total_reward = 0
 
             for t in range(self.max_time):
                 action = self.get_action(current_state)
@@ -151,23 +150,21 @@ class Ninja:
                 self.update_Q(current_state, new_state, action, reward)
                 current_state = new_state
 
-                total_reward += reward
-
                 if done:
-                    data_t.append(t)
-                    data_r.append(total_reward)
+                    survived.append(t + 1)
 
                     if (i_episode + 1) % self.log_interval == 0:
-                        if self.log and len(data_r):
-                            print("%6d %3d %3d %3d %6.3f %6.3f %6.3f" %
-                                  (i_episode + 1, np.mean(data_t),
-                                   max(data_r), total_reward,
+                        if self.log:
+                            print("%6d %3d %3d %6.3f %6.3f %6.3f" %
+                                  (i_episode + 1, np.mean(survived),
+                                   max(survived),
                                    self.alpha, self.gamma, self.epsilon))
                             sys.stdout.flush()
-
-                        data_t = []
-                        data_r = []
                     break
+
+            if np.mean(survived) > self.required_mean_score:
+                print("Solved after %6d episodes" % (i_episode))
+                break
 
     def get_max_Q_for_state(self, state):
         best_index = max(self.Q[state], key=self.Q[state].get)
