@@ -1,28 +1,35 @@
 import gym
 import numpy as np
-from random import random, randint
+import sys
+from random import random, randint, sample
 
 
 class Ninja:
     def __init__(self):
         self.env = gym.make('CartPole-v0')
 
-        self.levels = [0, 0, 5, 5]
+        self.levels = [0, 0, 2, 2]
 
         self.Q = self.enumerate_state_space()
 
-        self.epsilon = 0.9
-        self.alpha = 0.9
+        self.alpha = 0.4
         self.gamma = 0.9
+        self.epsilon = 0.75
 
-        self.high = [0.3, 2.25, 0.4, 3.5]
-        self.low = [-0.3, -2.25, -0.4, -3.5]
+        self.alpha_min = 0.6
+        self.gamma_min = 0.5
+        self.epsilon_min = 0.05
 
+        self.high = [10.5, 7.0, 6.0, 10.0]
+        self.low = [-10.5, -7.0, -6.0, -10.0]
+
+        self.max_iters = 1000
         self.max_iters = 2000
+        self.max_iters = 10000
         self.log_interval = 100
         self.max_time = 200
 
-        self.log = False
+        self.log = True
 
         self.n_space = self.env.observation_space.shape[0]
 
@@ -102,10 +109,13 @@ class Ninja:
         return self.epsilon
 
     def update_params(self):
-        # self.alpha *= 0.99
-        # self.gamma *= 0.99
-        # self.epsilon *= 0.995
-        pass
+        self.alpha *= 1.0001
+        self.gamma *= 0.9999
+        self.epsilon *= 0.99975
+
+        self.alpha = min(self.alpha, self.alpha_min)
+        self.gamma = max(self.gamma, self.gamma_min)
+        self.epsilon = max(self.epsilon, self.epsilon_min)
 
     def reset_Q(self):
         self.Q = self.enumerate_state_space()
@@ -133,6 +143,9 @@ class Ninja:
             total_reward = 0
 
             for t in range(self.max_time):
+                #if i_episode > 2000:
+                    #self.env.render()
+
                 observation, reward, done, _ = self.env.step(action)
 
                 new_state = self.discretize(observation)
@@ -149,14 +162,16 @@ class Ninja:
                     data_r.append(total_reward)
 
                     if (i_episode + 1) % self.log_interval == 0:
-                        if self.log:
-                            print("%6d %3d %3d" %
+                        if self.log and len(data_r):
+                            print("%6d %3d %3d %3d %6.3f %6.3f %6.3f" %
                                   (i_episode + 1, np.mean(data_t),
-                                   np.mean(data_r)))
-                    break
+                                   max(data_r), total_reward,
+                                   self.alpha, self.gamma, self.epsilon))
+                            sys.stdout.flush()
 
-        self.max_score.append(max(data_r))
-        self.mean_score.append(np.mean(data_r))
+                        data_t = []
+                        data_r = []
+                    break
 
     def update_Q(self, current_state, new_state, action, reward):
         self.Q[current_state][action] += self.get_alpha() * \
@@ -167,6 +182,12 @@ class Ninja:
         v = [0 for _ in range(self.n_space)]
 
         for i in range(self.n_space):
+            if space[i] < self.low[i]:
+                print('New low found: %2d %6.3f' % (i, space[i]))
+
+            if space[i] > self.high[i]:
+                print('New high found: %2d %6.3f' % (i, space[i]))
+
             v[i] = int(round(((space[i] - self.low[i]) / (self.high[i] -
                        self.low[i])) * self.levels[i]))
 
@@ -176,7 +197,10 @@ class Ninja:
         if random() < self.get_epsilon():
             return self.env.action_space.sample()
         else:
-            return np.argmax(self.Q[state])
+            best_index = np.argmax(self.Q[state])
+            best_reward = self.Q[state][best_index]
+            bests_indices = [action for action in self.Q[state].keys() if self.Q[state][action] == best_reward]
+            return sample(bests_indices, k=1)[0]
 
     def enumerate_state_space(self):
         actions = self.env.action_space.n
